@@ -12,7 +12,9 @@ class CreatePost(PostBase):
     pass
 
 class Post(PostBase):
+    id : int
     model_config = ConfigDict(from_attributes=True)
+
 
 class UserCreate(BaseModel):
     email : EmailStr
@@ -25,3 +27,7 @@ class Userout(BaseModel):
     email : str
     created_at : datetime
     model_config = ConfigDict(from_attributes=True)
+
+class Userlogin(BaseModel):
+    email : EmailStr
+    password : str
