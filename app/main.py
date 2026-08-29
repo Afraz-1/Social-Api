@@ -1,0 +1,110 @@
+from typing import List
+from fastapi import Body, Depends, FastAPI,status,HTTPException
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from sqlalchemy.orm import Session
+from app import models,schema,utils
+from .database import  engine, get_db
+
+
+models.Base.metadata.create_all(bind = engine)
+
+
+app  = FastAPI()
+
+# try:
+#     conn = psycopg2.connect(host = 'localhost',port = 5433,database = 'FastApi', user = 'postgres',
+#                             password = 'postgres', cursor_factory=RealDictCursor)
+#     print("connection succesful")
+#     cursor = conn.cursor()
+# except Exception as error:
+#     print("failed")
+#     print(error)
+
+
+@app.post("/posts",status_code=status.HTTP_201_CREATED,response_model=schema.Post)
+def create(post : schema.CreatePost, db : Session = Depends(get_db)):
+    # cursor.execute("""INSERT INTO posts (title,content,published) VALUES(%s,%s,%s) RETURNING *""",
+    #               (post.title,post.content,post.published))
+    # my_post = cursor.fetchone()
+
+    # conn.commit()
+    new_post = models.Post(**post.model_dump())
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
+  
+    return new_post
+
+
+@app.get("/posts", response_model=List[schema.Post])
+def posts(db : Session = Depends(get_db)):
+    #cursor.execute("""SELECT * FROM posts""")
+    #posts = cursor.fetchall()
+    posts = db.query(models.Post).all()
+    return posts
+
+
+
+@app.get("/posts/{id}",response_model=schema.Post)
+def get_id(id : int,db : Session = Depends(get_db)):
+    # cursor.execute("""SELECT * FROM posts where id = %s""",(id,))
+    # post = cursor.fetchone()
+
+    # if not post:
+    #     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail= "post not found")
+
+    post = db.query(models.Post).filter(models.Post.id == id).first()
+
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail= "post not found")
+
+
+    return post
+
+@app.delete("/posts/delete/{id}")
+def delete(id : int,db : Session = Depends(get_db)):
+    # cursor.execute("""DELETE FROM posts WHERE id = %s RETURNING * """,(id,))
+    # deleted_post = cursor.fetchone
+
+    # conn.commit()
+    # if not deleted_post:
+    #     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="post not found ")
+    deleted_post = db.query(models.Post).filter(models.Post.id == id).first()
+    if not deleted_post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="post not found ")
+    db.delete(deleted_post,)
+    db.commit()
+
+
+
+
+@app.put("/posts/update/{id}",response_model=schema.Post)
+def update(id : int, post : schema.PostBase,db : Session = Depends(get_db)):
+    # cursor.execute("""UPDATE posts SET title = %s,content = %s,published = %s WHERE id = %s RETURNING *""",
+    #                (post.title,post.content,post.published,id))
+
+    # updated_post = cursor.fetchone()
+
+    # conn.commit()
+    post_query = db.query(models.Post).filter(models.Post.id == id)
+    Post = post_query.first()
+    if not Post:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="post not found ")
+    post_query.update(post.model_dump(),synchronize_session=False)
+    db.commit()
+    return post_query.first()
+
+@app.post("/users",status_code=status.HTTP_201_CREATED,response_model=schema.Userout)
+def usercreate(user : schema.UserCreate,db:Session = Depends(get_db)):
+    hashedpass = utils.hash(user.password)
+    user.password = hashedpass
+
+
+    new_user = models.User(**user.model_dump())
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+       
+    return new_user
+     
