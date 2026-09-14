@@ -1,9 +1,10 @@
-from traceback import print_tb
-from typing import List
+from turtle import reset
+from typing import List, Optional
 from fastapi import Body, Depends, FastAPI,status,HTTPException,APIRouter
 from sqlalchemy.orm import Session
 from app import models, oauth2,schema,utils
-from app.database import  engine, get_db
+from app.database import  get_db
+from sqlalchemy import func
 
 
 Router = APIRouter(
@@ -15,13 +16,13 @@ Router = APIRouter(
 
 @Router.post("/",status_code=status.HTTP_201_CREATED,response_model=schema.Post)
 def create(post : schema.CreatePost, db : Session = Depends(get_db),
-           current_user : int = Depends(oauth2.get_current_user)):
+           current_user : models.User = Depends(oauth2.get_current_user)):
     # cursor.execute("""INSERT INTO posts (title,content,published) VALUES(%s,%s,%s) RETURNING *""",
     #               (post.title,post.content,post.published))
     # my_post = cursor.fetchone()
 
     # conn.commit()
-    print(current_user)
+    #print(current_user)
     new_post = models.Post(owner_id = current_user.id,**post.model_dump())
     db.add(new_post)
     db.commit()
@@ -30,16 +31,22 @@ def create(post : schema.CreatePost, db : Session = Depends(get_db),
     return new_post
 
 
-@Router.get("/", response_model=List[schema.Post])
-def posts(db : Session = Depends(get_db), current_user : int = Depends(oauth2.get_current_user)):
+@Router.get("/",response_model=List[schema.postout])
+def posts(db : Session = Depends(get_db), current_user : int = Depends(oauth2.get_current_user),limit : int = 10,
+          skip : int = 0,search : Optional[str] = ""):
     #cursor.execute("""SELECT * FROM posts""")
     #posts = cursor.fetchall()
-    posts = db.query(models.Post).all()
-    return posts
+    #posts = db.query(models.Post).filter(models.Post.title.contains(search)).limit(limit).offset(skip).all()
+    result = db.query(models.Post,func.count(models.Vote.post_id).label("vote")).join(models.Vote,models.Vote.post_id == models.Post.id,isouter=True).group_by(models.Post.id).filter(models.Post.title.contains(search)).limit(limit).offset(skip).all()
+   
+    return [
+    {"post": post, "votes": count}
+    for post, count in result
+    ]
 
 
 
-@Router.get("/{id}",response_model=schema.Post,)
+@Router.get("/{id}",response_model=schema.postout)
 def get_id(id : int,db : Session = Depends(get_db), current_user : int = Depends(oauth2.get_current_user)):
     # cursor.execute("""SELECT * FROM posts where id = %s""",(id,))
     # post = cursor.fetchone()
@@ -47,13 +54,15 @@ def get_id(id : int,db : Session = Depends(get_db), current_user : int = Depends
     # if not post:
     #     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail= "post not found")
 
-    post = db.query(models.Post).filter(models.Post.id == id).first()
+    post = db.query(models.Post,func.count(models.Vote.post_id).label("vote")).join(models.Vote,models.Vote.post_id == models.Post.id,isouter=True).group_by(models.Post.id).filter(models.Post.id == id).first()
 
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail= "post not found")
 
+    Post,votes = post
 
-    return post
+
+    return  {"post": Post, "votes": votes}
 
 @Router.delete("/{id}")
 def delete(id : int,db : Session = Depends(get_db), current_user : int = Depends(oauth2.get_current_user)):
