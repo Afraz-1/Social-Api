@@ -1,13 +1,19 @@
 from fastapi import  FastAPI
-from app import models
+from fastapi.middleware.cors import CORSMiddleware
 from .database import  engine
 from app.routers import user,post,auth,vote
 
 
-models.Base.metadata.create_all(bind = engine)
-
+origins = ["https://www.google.com"]
 
 app  = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def root():
