@@ -1,8 +1,7 @@
-from turtle import reset
 from typing import List, Optional
 from fastapi import Body, Depends, FastAPI,status,HTTPException,APIRouter
 from sqlalchemy.orm import Session
-from app import models, oauth2,schema,utils
+from app import models, oauth2,schema
 from app.database import  get_db
 from sqlalchemy import func
 
@@ -91,7 +90,7 @@ def update(id : int, post : schema.PostBase,db : Session = Depends(get_db), curr
 
     # updated_post = cursor.fetchone()
 
-    # conn.commit()
+    
     post_query = db.query(models.Post).filter(models.Post.id == id)
     Post = post_query.first()
     if not Post:
